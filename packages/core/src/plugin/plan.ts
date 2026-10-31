@@ -38,6 +38,8 @@ export const Plugin = define({
         item.permissions.push({ action: "question", resource: "*", effect: "allow" })
         item.permissions.push({ action: "edit", resource: "*", effect: "deny" })
         item.permissions.push({ action: "edit", resource: path.join(directory, "*"), effect: "allow" })
+        // Plan mode never runs commands without the user's say-so.
+        item.permissions.push({ action: "shell", resource: "*", effect: "ask" })
       })
     })
 

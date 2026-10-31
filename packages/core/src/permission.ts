@@ -12,6 +12,7 @@ import { SessionStore } from "./session/store.js"
 import { Wildcard } from "./util/wildcard.js"
 import { PermissionSaved } from "./permission/saved.js"
 import { PluginHooks } from "./plugin/hooks.js"
+import { GillesDini } from "./gilles-dini.js"
 
 const PermissionEffect = Permission.Effect
 export { PermissionEffect as Effect }
@@ -54,6 +55,14 @@ export { Event } from "@opencode/schema/permission"
  */
 export const Unattended = Context.Reference<Permission.Ruleset | undefined>("@opencode/Permission/Unattended", {
   defaultValue: () => undefined,
+})
+
+/**
+ * Builds the Gilles-Dini Monitor for each permission layer. The monitor lives outside the agent, so no tool can read
+ * or reset it. Tests and embedders can supply their own factory.
+ */
+export const Monitor = Context.Reference<() => GillesDini.Monitor>("@opencode/Permission/GillesDini", {
+  defaultValue: () => () => GillesDini.fromEnvironment(),
 })
 
 export class DeclinedError extends Schema.TaggedError<DeclinedError>()("Permission.DeclinedError", {}) {}
@@ -130,6 +139,7 @@ const layer = Layer.effect(
     const sessions = yield* SessionStore.Service
     const saved = yield* PermissionSaved.Service
     const hooks = yield* PluginHooks.Service
+    const monitor = (yield* Monitor)()
     const pending = new Map<ID, Pending>()
     let closed = false
 
@@ -174,6 +184,24 @@ const layer = Layer.effect(
     }
 
     const evaluateInput = Effect.fnUntraced(function* (input: AssertInput) {
+      const result = yield* evaluateRules(input)
+      if (result.effect === "deny") return { ...result, verdict: undefined }
+      // Gilles-Dini Monitor: may only make the decision stricter, never looser.
+      const verdict = monitor.assess(input)
+      const effect = GillesDini.stricter(result.effect, verdict.effect)
+      if (effect === result.effect) return { ...result, verdict }
+      const message = verdict.message ?? result.message
+      if (effect === "ask" && (yield* Unattended) !== undefined)
+        return { effect: "deny" as const, message, rules: result.rules, verdict }
+      return { effect, message, rules: result.rules, verdict }
+    })
+
+    const charge = (input: AssertInput, result: { effect: Permission.Effect; verdict?: GillesDini.Verdict }) =>
+      Effect.sync(() => {
+        if (result.verdict && result.effect !== "deny") monitor.charge(input, result.verdict)
+      })
+
+    const evaluateRules = Effect.fnUntraced(function* (input: AssertInput) {
       const rules = yield* configured(input.sessionID, input.agent)
       if (denied(input, rules)) return { effect: "deny" as const, rules }
       const all = [...rules, ...(yield* savedRules())]
@@ -240,6 +268,7 @@ const layer = Layer.effect(
     const ask = Effect.fn("Permission.ask")(function* (input: AssertInput) {
       if (closed) return { id: input.id ?? ID.create(), effect: "deny" as const }
       const result = yield* evaluateInput(input)
+      yield* charge(input, result)
       const value = request(input, result.message)
       if (result.effect === "ask") yield* create(value, input.agent)
       return { id: value.id, effect: result.effect }
@@ -249,6 +278,7 @@ const layer = Layer.effect(
       Effect.gen(function* () {
         if (closed) return yield* Effect.die(new DeclinedError())
         const result = yield* evaluateInput(input)
+        yield* charge(input, result)
         return yield* Effect.uninterruptibleMask((restore) =>
           Effect.gen(function* () {
             if (result.effect === "deny") {
