@@ -6,5 +6,8 @@ export const logo = {
 
 export const go = {
   left: ["    ", "█▀▀▀", "█_^█", "▀▀▀▀"],
-  right: ["    ", "▀▀▀█", "█^^█", "▀▀▀▀"],
+  right: ["    ", "█▀▀█", "█__█", "▀▀▀▀"],
 }
+
+// AgarthaOpen-Code monogram ("a"), used where the full wordmark does not fit.
+export const mark = ["    ", "▀▀▀█", "█^^█", "▀▀▀▀"]

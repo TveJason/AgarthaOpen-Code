@@ -3,7 +3,7 @@ import { For, type JSX } from "solid-js"
 import { useTerminalDimensions } from "@opentui/solid"
 import { useTheme } from "../context/theme"
 import { tint } from "../theme/color"
-import { go, logo } from "../logo"
+import { logo, mark } from "../logo"
 
 export function Logo() {
   const theme = useTheme()
@@ -52,7 +52,7 @@ export function Logo() {
   return (
     <box>
       {dimensions().height < 12 ? null : dimensions().width < 38 ? (
-        <For each={go.right.slice(1)}>
+        <For each={mark.slice(1)}>
           {(line) => <box flexDirection="row">{renderLine(line, theme.text.base, true)}</box>}
         </For>
       ) : dimensions().width < 58 ? (

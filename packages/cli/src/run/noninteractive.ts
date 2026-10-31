@@ -163,27 +163,33 @@ export async function runNonInteractivePrompt(input: Input) {
     sessionID: string
     action: string
     resources: ReadonlyArray<string>
+    message?: string
   }) => {
+    // Gilles-Dini Monitor escalations need a human, so --auto never approves them here.
+    const flagged = request.message?.startsWith("Gilles-Dini Monitor") === true
+    const auto = input.auto && !flagged
     // Nobody can approve here. Outside V1 compatibility, reject with feedback so the tool fails
     // as ordinary model-visible output and the model continues without the action.
-    const continuing = !input.auto && input.compatibility !== "v1"
-    if (!input.auto) {
+    const continuing = !auto && input.compatibility !== "v1"
+    if (!auto) {
       if (!continuing) permissionRejected = true
       UI.println(
         UI.Style.TEXT_WARNING_BOLD + "!",
         UI.Style.TEXT_NORMAL +
-          `permission requested: ${request.action} (${request.resources.join(", ")}); auto-rejecting`,
+          (flagged
+            ? `${request.message}; auto-rejecting`
+            : `permission requested: ${request.action} (${request.resources.join(", ")}); auto-rejecting`),
       )
     }
     await input.client.permission
       .reply({
         sessionID: request.sessionID,
         requestID: request.id,
-        decision: input.auto ? "once" : "reject",
-        ...(continuing ? { message: PERMISSION_REJECTED_FEEDBACK } : {}),
+        decision: auto ? "once" : "reject",
+        ...(continuing ? { message: flagged ? `${request.message}. ${PERMISSION_REJECTED_FEEDBACK}` : PERMISSION_REJECTED_FEEDBACK } : {}),
       })
       .catch(() => {})
-    if (!input.auto && !continuing) {
+    if (!auto && !continuing) {
       await input.client.session.interrupt({ sessionID: input.sessionID }).catch(() => {})
     }
   }

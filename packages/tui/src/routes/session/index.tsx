@@ -210,7 +210,9 @@ export function Session(props: {
       (sessionID) => data.session.permission.list(sessionID) ?? [],
     )
   })
-  const promptedPermissions = createMemo(() => (local.permission.mode === "autoaccept" ? [] : permissions()))
+  const promptedPermissions = createMemo(() =>
+    local.permission.mode === "autoaccept" ? permissions().filter(monitorFlagged) : permissions(),
+  )
   const forms = createMemo(() => {
     const global = data.session.form.list("global", location()) ?? []
     if (session()?.parentID) return global
@@ -269,7 +271,7 @@ export function Session(props: {
   createEffect(() => {
     if (local.permission.mode !== "autoaccept") return
     permissions().forEach((request) => {
-      if (autoApproved.has(request.id)) return
+      if (autoApproved.has(request.id) || monitorFlagged(request)) return
       autoApproved.add(request.id)
       void data.session.permission
         .reply({
@@ -2775,13 +2777,17 @@ export function genericToolSummary(tool: string, input: Record<string, unknown>)
   return `${tool}${args ? ` ${args}` : ""}`
 }
 
+// Gilles-Dini Monitor escalations always need a human, even in auto-accept mode.
+const monitorFlagged = (request: { readonly message?: string }) =>
+  request.message?.startsWith("Gilles-Dini Monitor") === true
+
 function useToolPermission(part: () => SessionMessageAssistantTool | undefined) {
   const ctx = use()
   const data = useData()
   const local = useLocal()
   return createMemo(() => {
-    if (local.permission.mode === "autoaccept") return false
     const request = data.session.permission.list(ctx.sessionID)?.[0]
+    if (local.permission.mode === "autoaccept" && !(request && monitorFlagged(request))) return false
     return request?.source?.type === "tool" && request.source.id === part()?.id
   })
 }
