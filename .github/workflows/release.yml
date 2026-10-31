@@ -91,20 +91,21 @@ jobs:
           name: release-cli
           path: dist/release
           if-no-files-found: error
-      # The desktop jobs bundle the CLI for their own target.
-      - name: Upload CLI for desktop (darwin-arm64)
+      # The desktop jobs bundle the CLI for their own target. x64 desktop builds bundle the baseline CLI,
+      # which also runs on CPUs without AVX2 (see CLI_BINARIES in packages/desktop/script/utils.ts).
+      - name: Upload cli-darwin-arm64 for desktop
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: cli-darwin-arm64, path: packages/cli/dist/cli-darwin-arm64, if-no-files-found: error }
-      - name: Upload CLI for desktop (darwin-x64)
+      - name: Upload cli-darwin-x64-baseline for desktop
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with: { name: cli-darwin-x64, path: packages/cli/dist/cli-darwin-x64, if-no-files-found: error }
-      - name: Upload CLI for desktop (windows-x64)
+        with: { name: cli-darwin-x64-baseline, path: packages/cli/dist/cli-darwin-x64-baseline, if-no-files-found: error }
+      - name: Upload cli-windows-x64-baseline for desktop
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with: { name: cli-windows-x64, path: packages/cli/dist/cli-windows-x64, if-no-files-found: error }
-      - name: Upload CLI for desktop (linux-x64)
+        with: { name: cli-windows-x64-baseline, path: packages/cli/dist/cli-windows-x64-baseline, if-no-files-found: error }
+      - name: Upload cli-linux-x64-baseline for desktop
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with: { name: cli-linux-x64, path: packages/cli/dist/cli-linux-x64, if-no-files-found: error }
-      - name: Upload CLI for desktop (linux-arm64)
+        with: { name: cli-linux-x64-baseline, path: packages/cli/dist/cli-linux-x64-baseline, if-no-files-found: error }
+      - name: Upload cli-linux-arm64 for desktop
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with: { name: cli-linux-arm64, path: packages/cli/dist/cli-linux-arm64, if-no-files-found: error }
 
@@ -114,11 +115,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { target: darwin-arm64, host: macos-26, os: mac, arch: arm64, install: --os=darwin --cpu=arm64 }
-          - { target: darwin-x64, host: macos-26-intel, os: mac, arch: x64, install: --os=darwin --cpu=x64 }
-          - { target: windows-x64, host: windows-2025, os: win, arch: x64, install: "" }
-          - { target: linux-x64, host: ubuntu-24.04, os: linux, arch: x64, install: "" }
-          - { target: linux-arm64, host: ubuntu-24.04-arm, os: linux, arch: arm64, install: "" }
+          - { target: darwin-arm64, cli: cli-darwin-arm64, host: macos-26, os: mac, arch: arm64, install: --os=darwin --cpu=arm64 }
+          - { target: darwin-x64, cli: cli-darwin-x64-baseline, host: macos-26-intel, os: mac, arch: x64, install: --os=darwin --cpu=x64 }
+          - { target: windows-x64, cli: cli-windows-x64-baseline, host: windows-2025, os: win, arch: x64, install: "" }
+          - { target: linux-x64, cli: cli-linux-x64-baseline, host: ubuntu-24.04, os: linux, arch: x64, install: "" }
+          - { target: linux-arm64, cli: cli-linux-arm64, host: ubuntu-24.04-arm, os: linux, arch: arm64, install: "" }
     runs-on: ${{ matrix.host }}
     env:
       OPENCODE_VERSION: ${{ needs.version.outputs.version }}
@@ -128,11 +129,11 @@ jobs:
       - name: Download the CLI for this target
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: cli-${{ matrix.target }}
-          path: packages/cli/dist/cli-${{ matrix.target }}
+          name: ${{ matrix.cli }}
+          path: packages/cli/dist/${{ matrix.cli }}
       - name: Restore executable bit
         if: runner.os != 'Windows'
-        run: chmod +x packages/cli/dist/cli-${{ matrix.target }}/bin/*
+        run: chmod +x packages/cli/dist/${{ matrix.cli }}/bin/*
       - name: Set up Bun
         uses: ./.github/actions/setup-bun
         with:
