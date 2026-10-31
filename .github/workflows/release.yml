@@ -1,0 +1,213 @@
+# AgarthaOpen-Code release
+#
+# Push a tag like v0.1.0 (or run this workflow by hand with a version) to build:
+#   - the `agartha` CLI for macOS, Windows and Linux, as downloadable archives
+#   - the desktop app installers: .dmg/.zip (macOS), .exe (Windows), .AppImage/.deb/.rpm (Linux)
+# and publish them, with the auto-update metadata the desktop app reads, to a GitHub Release.
+#
+# Builds are unsigned. macOS will ask users to right-click > Open the first time, Windows SmartScreen will warn,
+# and macOS auto-updates need a signed app. Add signing secrets later to remove those warnings.
+name: release
+run-name: "release ${{ inputs.version || github.ref_name }}"
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, without the leading v (for example 0.1.0)"
+        required: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  OPENCODE_CHANNEL: latest
+
+jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        name: Resolve version
+        env:
+          INPUT: ${{ inputs.version }}
+          REF: ${{ github.ref_name }}
+        run: |
+          VERSION="${INPUT:-${REF#v}}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::'$VERSION' is not a semantic version like 0.1.0"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build-cli:
+    needs: version
+    runs-on: ubuntu-24.04
+    env:
+      OPENCODE_VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Set up Bun
+        uses: ./.github/actions/setup-bun
+      - name: Fetch the latest models catalog
+        run: bun packages/core/script/update-models-snapshot.ts .cache/models-catalog/api.json
+      - name: Build every CLI target
+        working-directory: packages/cli
+        run: bun run build && rm -rf dist/.bun
+        env:
+          OPENCODE_MODELS_SNAPSHOT: ${{ github.workspace }}/.cache/models-catalog/api.json
+      - name: Smoke-test the Linux binary
+        run: |
+          packages/cli/dist/cli-linux-x64/bin/opencode --version
+          packages/cli/dist/cli-linux-x64/bin/opencode --help | grep -q agartha
+      - name: Package archives
+        working-directory: packages/cli/dist
+        run: |
+          mkdir -p ../../../dist/release
+          for dir in cli-*/; do
+            target="${dir%/}"; target="${target#cli-}"
+            stage="$(mktemp -d)"
+            if [[ "$target" == windows-* ]]; then
+              cp "$dir/bin/opencode.exe" "$stage/agartha.exe"
+              (cd "$stage" && zip -X -q "$OLDPWD/../../../dist/release/agartha-$target.zip" agartha.exe)
+            else
+              cp "$dir/bin/opencode" "$stage/agartha"
+              chmod +x "$stage/agartha"
+              tar --owner=0 --group=0 --numeric-owner -czf "../../../dist/release/agartha-$target.tar.gz" -C "$stage" agartha
+            fi
+          done
+          ls -la ../../../dist/release
+      - name: Upload CLI archives
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-cli
+          path: dist/release
+          if-no-files-found: error
+      # The desktop jobs bundle the CLI for their own target.
+      - name: Upload CLI for desktop (darwin-arm64)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: cli-darwin-arm64, path: packages/cli/dist/cli-darwin-arm64, if-no-files-found: error }
+      - name: Upload CLI for desktop (darwin-x64)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: cli-darwin-x64, path: packages/cli/dist/cli-darwin-x64, if-no-files-found: error }
+      - name: Upload CLI for desktop (windows-x64)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: cli-windows-x64, path: packages/cli/dist/cli-windows-x64, if-no-files-found: error }
+      - name: Upload CLI for desktop (linux-x64)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: cli-linux-x64, path: packages/cli/dist/cli-linux-x64, if-no-files-found: error }
+      - name: Upload CLI for desktop (linux-arm64)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with: { name: cli-linux-arm64, path: packages/cli/dist/cli-linux-arm64, if-no-files-found: error }
+
+  build-desktop:
+    needs: [version, build-cli]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: darwin-arm64, host: macos-26, os: mac, arch: arm64, install: --os=darwin --cpu=arm64 }
+          - { target: darwin-x64, host: macos-26-intel, os: mac, arch: x64, install: --os=darwin --cpu=x64 }
+          - { target: windows-x64, host: windows-2025, os: win, arch: x64, install: "" }
+          - { target: linux-x64, host: ubuntu-24.04, os: linux, arch: x64, install: "" }
+          - { target: linux-arm64, host: ubuntu-24.04-arm, os: linux, arch: arm64, install: "" }
+    runs-on: ${{ matrix.host }}
+    env:
+      OPENCODE_VERSION: ${{ needs.version.outputs.version }}
+      OPENCODE_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Download the CLI for this target
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: cli-${{ matrix.target }}
+          path: packages/cli/dist/cli-${{ matrix.target }}
+      - name: Restore executable bit
+        if: runner.os != 'Windows'
+        run: chmod +x packages/cli/dist/cli-${{ matrix.target }}/bin/*
+      - name: Set up Bun
+        uses: ./.github/actions/setup-bun
+        with:
+          install-flags: ${{ matrix.install }}
+      - name: Set up rpm
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends rpm
+      - name: Build
+        working-directory: packages/desktop
+        run: bun run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+      - name: Package installers
+        working-directory: packages/desktop
+        shell: bash
+        timeout-minutes: 60
+        run: |
+          extra=()
+          if [[ "${{ matrix.os }}" == mac ]]; then extra+=(-c.mac.identity=null); fi
+          bunx electron-builder --${{ matrix.os }} --${{ matrix.arch }} --publish never \
+            --config electron-builder.config.ts "${extra[@]}"
+      - name: Collect installers and update metadata
+        shell: bash
+        run: |
+          mkdir -p dist/release
+          cd packages/desktop/dist
+          for file in *.dmg *.zip *.exe *.AppImage *.deb *.rpm *.blockmap; do
+            [[ -f "$file" ]] && cp "$file" ../../../dist/release/
+          done
+          # Each macOS architecture writes its own latest-mac.yml; the release job merges them.
+          if [[ -f latest-mac.yml ]]; then cp latest-mac.yml "../../../dist/release/latest-mac-${{ matrix.arch }}.yml"; fi
+          for file in latest.yml latest-linux.yml latest-linux-arm64.yml; do
+            [[ -f "$file" ]] && cp "$file" ../../../dist/release/
+          done
+          ls -la ../../../dist/release
+      - name: Upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-desktop-${{ matrix.target }}
+          path: dist/release
+          if-no-files-found: error
+
+  publish:
+    needs: [version, build-cli, build-desktop]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Download release files
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: release-*
+          path: release
+          merge-multiple: true
+      - name: Merge macOS update metadata
+        run: |
+          shopt -s nullglob
+          parts=(release/latest-mac-*.yml)
+          if (( ${#parts[@]} )); then
+            bun packages/desktop/script/merge-mac-update.ts release/latest-mac.yml "${parts[@]}"
+            rm "${parts[@]}"
+          fi
+      - name: Checksums
+        working-directory: release
+        run: sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - name: Publish the GitHub Release
+        run: |
+          tag="v$VERSION"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "AgarthaOpen-Code $tag" --generate-notes \
+              --target "$GITHUB_SHA" $([[ "$VERSION" == *-* ]] && echo --prerelease)
+          fi
+          gh release upload "$tag" release/* --clobber

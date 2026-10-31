@@ -11,7 +11,14 @@ import path from "node:path"
 import { Updater } from "../src/services/updater"
 import { testEffect } from "../../core/test/lib/effect"
 
-const it = testEffect(NodeServices.layer)
+// AgarthaOpen-Code ships through its own GitHub Releases, so the inherited package-manager upgrade paths are
+// disabled (see AgarthaReleases in src/services/updater.ts). These upstream tests cover that disabled machinery
+// and are kept, skipped, so they can be re-enabled if those install channels are ever published.
+const runnable = testEffect(NodeServices.layer)
+const it = {
+  effect: Object.assign(runnable.effect.skip, { skip: runnable.effect.skip }),
+  live: Object.assign(runnable.live.skip, { skip: runnable.live.skip }),
+}
 
 declare const OPENCODE_CLI_NAME: string | undefined
 
@@ -551,7 +558,7 @@ unix("other platforms never link the running binary", () =>
   }),
 )
 
-test("Node distribution honors the compile-time CLI name", async () => {
+test.skip("Node distribution honors the compile-time CLI name", async () => {
   const child = Bun.spawn(
     [
       process.execPath,
@@ -601,3 +608,23 @@ if (typeof OPENCODE_CLI_NAME === "string" && OPENCODE_CLI_NAME === "opencode2-no
     }),
   )
 }
+
+// AgarthaOpen-Code: the updater must never fetch upstream releases or run an installer.
+runnable.live("AgarthaOpen-Code never checks or installs upstream OpenCode releases", () =>
+  Effect.gen(function* () {
+    const test = yield* fixture()
+    expect(yield* test.updater.check()).toEqual({
+      type: "unavailable",
+      message: `AgarthaOpen-Code updates are published on GitHub Releases: ${Updater.AgarthaReleases}`,
+    })
+    const latest = yield* test.updater.latest("npm").pipe(Effect.flip)
+    expect(latest).toBeInstanceOf(Updater.UpgradeError)
+    expect((latest as Updater.UpgradeError).detail).toContain(Updater.AgarthaReleases)
+    for (const method of ["npm", "pnpm", "yarn", "bun", "brew", "curl"] as const) {
+      const error = yield* test.updater.upgrade(method, "9.9.9").pipe(Effect.flip)
+      expect(error).toBeInstanceOf(Updater.UpgradeError)
+    }
+    expect(test.requests).toEqual([])
+    expect(test.commands).toEqual([])
+  }),
+)

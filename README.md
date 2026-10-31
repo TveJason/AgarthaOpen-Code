@@ -81,15 +81,24 @@ Any OpenAI-compatible server works. Example for Ollama in `opencode.json` at you
 }
 ```
 
-## Building releases
+## Releases
+
+Tag a version and push the tag:
 
 ```bash
-bun run --cwd packages/cli build       # terminal binaries
-bun run --cwd packages/desktop build   # desktop app
-bun run --cwd packages/desktop pack    # installers: .dmg, .exe, .AppImage, .deb, .rpm
+git tag v0.1.0 && git push origin v0.1.0
 ```
 
-Desktop auto-updates are published from this repository's GitHub Releases.
+The [release workflow](.github/workflows/release.yml) builds the `agartha` CLI for macOS, Windows and Linux and the desktop installers (`.dmg`, `.exe`, `.AppImage`, `.deb`, `.rpm`), then publishes them to a GitHub Release with checksums. The desktop app updates itself from these releases; the CLI's `upgrade` command points users here rather than at upstream.
+
+Builds are unsigned for now: macOS asks users to right-click → Open the first time, Windows SmartScreen shows a warning, and macOS auto-updates need a signed app.
+
+To build locally:
+
+```bash
+bun run --cwd packages/cli build       # terminal binaries for every platform
+bun run --cwd packages/desktop build   # desktop app for this machine
+```
 
 ## Project layout
 

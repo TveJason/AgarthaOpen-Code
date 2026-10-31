@@ -167,8 +167,8 @@ const getBase = (appId: string): Configuration => {
       target: ["dmg", "zip"],
     },
     protocols: {
-      name: "OpenCode",
-      schemes: ["opencode"],
+      name: "AgarthaOpen-Code",
+      schemes: ["agartha"],
     },
     win: {
       icon: `resources/icons/icon.ico`,

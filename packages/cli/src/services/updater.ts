@@ -17,6 +17,22 @@ export type Method = (typeof methods)[number]
 export type RunResult = { readonly type: "available" | "installed"; readonly version: string }
 export type CheckResult = RunResult | { readonly type: "unavailable"; readonly message: string }
 
+/**
+ * AgarthaOpen-Code ships through its own GitHub Releases. The inherited updater would fetch upstream OpenCode
+ * releases and replace this build with them, so automatic checks are skipped and upgrades point at our releases.
+ */
+export const AgarthaReleases = "https://github.com/TveJason/AgarthaOpen-Code/releases"
+
+/** Typed as boolean so the inherited updater code after each guard still typechecks. */
+const githubReleasesOnly: boolean = true
+
+export const agarthaUpgradeError = () =>
+  new UpgradeError({
+    title: "AgarthaOpen-Code updates come from GitHub Releases",
+    detail: `Download the latest version from ${AgarthaReleases}`,
+    retry: `Install the newest release from ${AgarthaReleases}.`,
+  })
+
 export class UpgradeError extends Error {
   readonly title: string
   readonly detail: string
@@ -273,6 +289,7 @@ const make = Effect.gen(function* () {
   }
 
   const release = Effect.fnUntraced(function* (method?: Method) {
+    if (githubReleasesOnly) return yield* Effect.fail(agarthaUpgradeError())
     const distribution = method === "brew" ? "homebrew" : "npm"
     // Homebrew Core builds its formula on its own schedule, so the tap release does not describe it.
     const core = method === "brew" && installedFormula === "opencode"
@@ -423,6 +440,7 @@ const make = Effect.gen(function* () {
   }
 
   const upgrade = Effect.fnUntraced(function* (method: Method, input: string) {
+    if (githubReleasesOnly) return yield* Effect.fail(agarthaUpgradeError())
     if (!parseReleaseVersion(input)) return yield* Effect.fail(new Error(`Invalid version: ${input}`))
     const version = input.trim().replace(/^v/, "")
     const packageName =
@@ -531,6 +549,10 @@ const make = Effect.gen(function* () {
   })
 
   const inspect = Effect.fnUntraced(function* () {
+    if (githubReleasesOnly) {
+      yield* Effect.logInfo("update check skipped", { reason: "agartha-github-releases", releases: AgarthaReleases })
+      return undefined
+    }
     if (OPENCODE_LOCAL || ["1", "true"].includes(process.env.OPENCODE_DISABLE_AUTOUPDATE?.toLowerCase() ?? "")) {
       yield* Effect.logInfo("update check skipped", {
         reason: OPENCODE_LOCAL ? "local-install" : "disabled",
@@ -583,6 +605,11 @@ const make = Effect.gen(function* () {
   })
 
   const check = Effect.fn("cli.updater.check")(function* () {
+    if (githubReleasesOnly)
+      return {
+        type: "unavailable" as const,
+        message: `AgarthaOpen-Code updates are published on GitHub Releases: ${AgarthaReleases}`,
+      }
     if (OPENCODE_LOCAL)
       return {
         type: "unavailable" as const,
