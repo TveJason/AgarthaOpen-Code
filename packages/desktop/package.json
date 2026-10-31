@@ -4,6 +4,7 @@
   "version": "2.2.5",
   "type": "module",
   "license": "MIT",
+  "description": "AgarthaOpen-Code: open-source, model-agnostic AI coding agent, guarded by the Gilles-Dini Monitor",
   "homepage": "https://github.com/TveJason/AgarthaOpen-Code",
   "author": {
     "name": "Jason Gilles",
