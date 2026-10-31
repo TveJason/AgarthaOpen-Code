@@ -36,7 +36,7 @@ default. `bun dev --download-server <version>` instead downloads that CLI versio
 
 ## Beta channel
 
-Every push to the `beta` branch publishes OpenCode Beta (`ai.opencode.desktop.beta`) as version `0.0.0-beta-<run>` to
+Every push to the `beta` branch publishes OpenCode Beta (`com.agarthaopencode.desktop.beta`) as version `0.0.0-beta-<run>` to
 the `beta` update channel. Beta publishes only the desktop app and `beta.opencode.ai`; the CLI and SDK packages ship
 from `dev`. Install it from `https://opencode.ai/download/beta/<platform>`, for example `darwin-aarch64-dmg` or
 `windows-x64-nsis`. Installed builds update in place on every platform.
@@ -58,7 +58,7 @@ bun run bench:startup -- --runs 5 --compare dist/other/OpenCode\ Dev.exe   # A/B
 bun run bench:startup -- --service cold                            # each launch spawns the service
 bun run bench:startup -- --fresh                                   # first launch after an install (profile wiped each time)
 bun run bench:startup -- --profile-main --profile-renderer --trace # CPU profiles and a Chromium startup trace
-bun run bench:startup -- --seed "%APPDATA%\ai.opencode.desktop.dev"   # restore tabs and drafts from an existing profile
+bun run bench:startup -- --seed "%APPDATA%\com.agarthaopencode.desktop.dev"   # restore tabs and drafts from an existing profile
 ```
 
 The app runs in an isolated home (`%TEMP%\opencode-bench-startup`): its own `%APPDATA%`, XDG directories, OpenCode

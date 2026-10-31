@@ -9,12 +9,6 @@ import { CLI_BINARIES, getCurrentCli, nodePtyPackage } from "./script/utils"
 
 const packageDir = path.dirname(fileURLToPath(import.meta.url))
 
-// The Electron 42 packaging update briefly installed Linux launchers/icons under
-// "opencode-desktop". Keep that hidden desktop entry around so existing GNOME/KDE
-// pins still resolve after the canonical app id changes back to ai.opencode.desktop.
-const legacyDesktopEntry = path.join(packageDir, "resources", "linux", "opencode-desktop.desktop")
-
-const legacyDesktopEntryFpm = `${legacyDesktopEntry}=/usr/share/applications/opencode-desktop.desktop`
 
 // rpmbuild adds /usr/lib/.build-id links for every ELF file. The bundled Electron
 // binaries are byte-identical across apps on the same Electron version, so those
@@ -41,14 +35,14 @@ function resolveChannel() {
 }
 
 const APP_IDS = {
-  dev: "ai.opencode.desktop.dev",
-  beta: "ai.opencode.desktop.beta",
-  prod: "ai.opencode.desktop",
+  dev: "com.agarthaopencode.desktop.dev",
+  beta: "com.agarthaopencode.desktop.beta",
+  prod: "com.agarthaopencode.desktop",
 } as const
 
 // libappimage (used by AppImageLauncher) resolves the .desktop entry inside an
 // AppImage by globbing `*.desktop` at the squashfs root. If the main
-// executable itself ends in `.desktop` (prod appId `ai.opencode.desktop`), the
+// executable itself ends in `.desktop` (prod appId `com.agarthaopencode.desktop`), the
 // ELF binary matches the glob and is parsed as a desktop entry, so
 // integration fails with `Malformed desktop entry: Unexpected char '\x7f' at 0`
 // (0x7F is the first byte of the ELF magic).
@@ -64,14 +58,14 @@ const getBase = (appId: string): Configuration => {
   const desktopName = `${appId}.desktop`
 
   return {
-    artifactName: "opencode-desktop-${os}-${arch}.${ext}",
+    artifactName: "agarthaopen-code-desktop-${os}-${arch}.${ext}",
     directories: {
       output: "dist",
       buildResources: "resources",
     },
     // Linux launchers are .desktop files, so this is the desktop file name,
-    // not just the app id. For prod, app id "ai.opencode.desktop" becomes
-    // "ai.opencode.desktop.desktop".
+    // not just the app id. For prod, app id "com.agarthaopencode.desktop" becomes
+    // "com.agarthaopencode.desktop.desktop".
     // https://developer.gnome.org/documentation/guidelines/maintainer/integrating.html
     // https://www.electron.build/docs/linux/
     // Release builds take their version from OPENCODE_VERSION instead of rewriting package.json.
@@ -193,7 +187,7 @@ const getBase = (appId: string): Configuration => {
       category: "Development",
       executableName: linuxExecutableName(appId),
       // Derive the installed `.desktop` filename from `desktopName`
-      // (`ai.opencode.desktop.desktop` for prod) instead of `executableName`,
+      // (`com.agarthaopencode.desktop.desktop` for prod) instead of `executableName`,
       // so window association is unaffected by the executable rename above.
       syncDesktopName: true,
       desktop: {
@@ -218,15 +212,16 @@ export function getConfig() {
       return {
         ...base,
         appId,
-        productName: "OpenCode Dev",
+        productName: "AgarthaOpen-Code Dev",
         publish: {
-          provider: "generic",
-          url: "https://opencode.ai/update/api/dev/desktop/opencode/",
-          channel: "latest",
+          provider: "github",
+          owner: "TveJason",
+          repo: "AgarthaOpen-Code",
+          channel: "dev",
         },
         deb: { fpm: [...previewCompressionFpm("deb"), metainfoFpm(appId)] },
         rpm: {
-          packageName: "opencode-dev",
+          packageName: "agarthaopen-code-dev",
           fpm: [rpmNoBuildIdLinksFpm, ...previewCompressionFpm("rpm"), metainfoFpm(appId)],
         },
       }
@@ -236,16 +231,17 @@ export function getConfig() {
       return {
         ...base,
         appId,
-        productName: "OpenCode Beta",
-        protocols: { name: "OpenCode Beta", schemes: ["opencode"] },
+        productName: "AgarthaOpen-Code Beta",
+        protocols: { name: "AgarthaOpen-Code Beta", schemes: ["agartha"] },
         publish: {
-          provider: "generic",
-          url: "https://opencode.ai/update/api/beta/desktop/opencode/",
-          channel: "latest",
+          provider: "github",
+          owner: "TveJason",
+          repo: "AgarthaOpen-Code",
+          channel: "beta",
         },
         deb: { fpm: [...previewCompressionFpm("deb"), metainfoFpm(appId)] },
         rpm: {
-          packageName: "opencode-beta",
+          packageName: "agarthaopen-code-beta",
           fpm: [rpmNoBuildIdLinksFpm, ...previewCompressionFpm("rpm"), metainfoFpm(appId)],
         },
       }
@@ -255,20 +251,21 @@ export function getConfig() {
       return {
         ...base,
         appId,
-        productName: "OpenCode",
-        protocols: { name: "OpenCode", schemes: ["opencode"] },
+        productName: "AgarthaOpen-Code",
+        protocols: { name: "AgarthaOpen-Code", schemes: ["agartha"] },
         // An Icon Composer package compiles to Assets.car, which macOS 26 and later draw the app icon from
         // (Dock, Finder, system dialogs and the system icon styles). Older macOS keeps using the ICNS.
         mac: { ...base.mac, icon: "resources/icons/icon.icon" },
         // The DMG volume icon would otherwise use the same actool-generated ICNS.
         dmg: { icon: "resources/icons/icon.icns" },
         publish: {
-          provider: "generic",
-          url: "https://opencode.ai/update/api/latest/desktop/opencode/",
+          provider: "github",
+          owner: "TveJason",
+          repo: "AgarthaOpen-Code",
           channel: "latest",
         },
-        deb: { fpm: [metainfoFpm(appId), legacyDesktopEntryFpm] },
-        rpm: { packageName: "opencode", fpm: [rpmNoBuildIdLinksFpm, metainfoFpm(appId), legacyDesktopEntryFpm] },
+        deb: { fpm: [metainfoFpm(appId)] },
+        rpm: { packageName: "agarthaopen-code", fpm: [rpmNoBuildIdLinksFpm, metainfoFpm(appId)] },
       }
     }
   }

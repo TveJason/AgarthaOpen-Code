@@ -4,10 +4,10 @@
   "version": "2.2.5",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://github.com/TveJason/AgarthaOpen-Code",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "Jason Gilles",
+    "email": "thejasongilles@gmail.com"
   },
   "scripts": {
     "typecheck": "bun check --no-script -b",

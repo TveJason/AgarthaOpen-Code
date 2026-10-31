@@ -1,114 +1,108 @@
-<p align="center">
-  <a href="https://opencode.ai">
-    <picture>
-      <source srcset="packages/console/app/src/asset/logo-ornate-dark.svg" media="(prefers-color-scheme: dark)">
-      <source srcset="packages/console/app/src/asset/logo-ornate-light.svg" media="(prefers-color-scheme: light)">
-      <img src="packages/console/app/src/asset/logo-ornate-light.svg" alt="OpenCode logo">
-    </picture>
-  </a>
-</p>
-<p align="center">The open source AI coding agent.</p>
-<p align="center">
-  <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
-  <a href="https://www.npmjs.com/package/@opencode/cli"><img alt="npm" src="https://img.shields.io/npm/v/@opencode/cli?style=flat-square" /></a>
-  <a href="https://github.com/anomalyco/opencode/actions/workflows/release.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/anomalyco/opencode/release.yml?style=flat-square&branch=dev" /></a>
-</p>
+<pre align="center">
+                     ▄   ▄                        ▄
+▀▀▀█ █▀▀▀ ▀▀▀█ █▀▀▀ ▀█▀▀ █▀▀█ ▀▀▀█   █▀▀▀ █▀▀█ █▀▀█ █▀▀█
+█▀▀█ █ ▀█ █▀▀█ █     █   █  █ █▀▀█   █    █  █ █  █ █▀▀▀
+▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀     ▀▀▀ ▀  ▀ ▀▀▀▀   ▀▀▀▀ ▀▀▀▀ ▀▀▀▀ ▀▀▀▀
+</pre>
 
-<p align="center">
-  <a href="README.md">English</a> |
-  <a href="README.zh.md">简体中文</a> |
-  <a href="README.zht.md">繁體中文</a> |
-  <a href="README.ko.md">한국어</a> |
-  <a href="README.de.md">Deutsch</a> |
-  <a href="README.es.md">Español</a> |
-  <a href="README.fr.md">Français</a> |
-  <a href="README.it.md">Italiano</a> |
-  <a href="README.da.md">Dansk</a> |
-  <a href="README.ja.md">日本語</a> |
-  <a href="README.pl.md">Polski</a> |
-  <a href="README.ru.md">Русский</a> |
-  <a href="README.bs.md">Bosanski</a> |
-  <a href="README.ar.md">العربية</a> |
-  <a href="README.no.md">Norsk</a> |
-  <a href="README.br.md">Português (Brasil)</a> |
-  <a href="README.th.md">ไทย</a> |
-  <a href="README.tr.md">Türkçe</a> |
-  <a href="README.uk.md">Українська</a> |
-  <a href="README.bn.md">বাংলা</a> |
-  <a href="README.gr.md">Ελληνικά</a> |
-  <a href="README.vi.md">Tiếng Việt</a>
-</p>
+<p align="center"><b>AgarthaOpen-Code</b> — the open-source, model-agnostic AI coding agent for your terminal and desktop,<br/>guarded by the <b>Gilles-Dini Monitor</b>.</p>
 
-[![OpenCode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+<p align="center">Created by <a href="https://x.com/RealJasonGilles">Jason Gilles</a></p>
 
 ---
 
-### Installation
+## What it is
+
+AgarthaOpen-Code is a command-line-first AI coding assistant. You chat with an agent in a polished terminal UI, and it can read your project, write and edit code, and run commands for you — with a cross-platform desktop app (Windows, macOS, Linux) that offers the same experience.
+
+- **Model-agnostic.** Bring your own key for OpenAI, Anthropic, Google and many other providers, or point it at a local model (Ollama, LM Studio, llama.cpp or any OpenAI-compatible server).
+- **Two built-in modes**, switchable with <kbd>Shift</kbd>+<kbd>Tab</kbd>:
+  - **Build** — the full-power development agent. Edits files freely and runs commands.
+  - **Plan** — read-only analysis. It can't modify your files, and it asks for permission before running any command.
+- **Gilles-Dini Monitor** — an external, tamper-resistant safety monitor that watches every action the agent tries to take (see below).
+- **Terminal and desktop.** The TUI and the Electron desktop app share the same core and server.
+- **Written in TypeScript**, running on Bun.
+
+## The Gilles-Dini Monitor
+
+Most coding agents decide each permission in isolation: is _this_ command allowed? The Gilles-Dini Monitor also looks at what the agent has been doing across the session.
+
+It sits in the permission layer, outside the model's reach — no tool can read, reset or reconfigure it. Every request the agent makes is scored, and each session carries a cumulative **containment-risk budget**:
+
+| Situation | What the monitor does |
+| --- | --- |
+| Reads, searches, listing files | Never restricted — the agent can always look and explain |
+| A single high-risk action (e.g. `curl … \| sudo bash`) | Requires your approval, even if your config allowed it |
+| A suspicious capability chain (e.g. reading `.env` or `~/.ssh`, then sending data off the machine) | Requires your approval before the chain completes |
+| Session risk past 60% of the budget | Every risky action requires your approval |
+| Budget exhausted | Risky actions are denied |
+| Scheduled or unattended runs | Anything the monitor would ask about is denied, since nobody is there to approve it |
+
+The monitor can only make a decision **stricter**; it never overrides a deny you configured. Usage decays as the session goes on, so a long, ordinary session of edits and test runs stays well under the thresholds while a burst of dangerous actions crosses them quickly.
+
+It watches for destructive operations (`rm -rf`, `git push --force`, `git reset --hard`), remote code execution (piping downloads into a shell), data egress (`curl -d`, `scp`, `nc`), credential access (`.env`, SSH keys, cloud credentials), privilege escalation (`sudo`, `chmod 777`), and persistence (cron jobs, shell startup files, git hooks, CI workflows).
+
+Configuration:
 
 ```bash
-# YOLO
-curl -fsSL https://opencode.ai/v2/install | bash
-
-# Package managers
-npm i -g @opencode/cli@latest      # or bun/pnpm/yarn
-brew install anomalyco/tap/opencode-v2 # macOS and Linux (recommended, always up to date)
-brew install opencode              # macOS and Linux (official brew formula, updated less)
-sudo pacman -S opencode            # Arch Linux (Stable)
-paru -S opencode-beta              # Arch Linux (Latest from AUR)
-mise use -g opencode               # Any OS
-nix run github:anomalyco/opencode  # Nix
+AGARTHA_GILLES_DINI_BUDGET=50 agartha   # larger budget (default 30)
+AGARTHA_GILLES_DINI=off agartha         # disable the monitor
 ```
 
-> [!TIP]
-> Remove versions older than 0.1.x before installing.
+Source: [`packages/core/src/gilles-dini.ts`](packages/core/src/gilles-dini.ts), tests in [`packages/core/test/gilles-dini.test.ts`](packages/core/test/gilles-dini.test.ts).
 
-### Desktop App (BETA)
+## Getting started (from source)
 
-OpenCode is also available as a desktop application. Download it from [opencode.ai/download](https://opencode.ai/download).
-
-| Platform              | Download                           |
-| --------------------- | ---------------------------------- |
-| macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
-| macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
-| Windows               | `opencode-desktop-win-x64.exe`     |
-| Linux                 | `.deb`, `.rpm`, or `.AppImage`     |
+Requires [Bun](https://bun.sh) 1.4+.
 
 ```bash
-# macOS (Homebrew)
-brew install --cask opencode-desktop
+git clone https://github.com/TveJason/AgarthaOpen-Code
+cd AgarthaOpen-Code
+bun install
+bun run agartha            # launch the terminal UI in the current directory
+bun run dev:desktop        # launch the desktop app in dev mode
 ```
 
-#### Installation Directory
+Inside the TUI, run `/connect` to add an API key for OpenAI, Anthropic, Google or another provider, or to configure a local model, then `/models` to pick one.
 
-The install script installs OpenCode to `$HOME/.opencode/bin`.
+### Local models
 
-### Agents
+Any OpenAI-compatible server works. Example for Ollama in `opencode.json` at your project root:
 
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
+```json
+{
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "http://localhost:11434/v1" },
+      "models": { "qwen2.5-coder:14b": {} }
+    }
+  }
+}
+```
 
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
-  - Denies file edits by default
-  - Asks permission before running bash commands
-  - Ideal for exploring unfamiliar codebases or planning changes
+## Building releases
 
-Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
+```bash
+bun run --cwd packages/cli build       # terminal binaries
+bun run --cwd packages/desktop build   # desktop app
+bun run --cwd packages/desktop pack    # installers: .dmg, .exe, .AppImage, .deb, .rpm
+```
 
-Learn more about [agents](https://opencode.ai/v2/docs/agents).
+Desktop auto-updates are published from this repository's GitHub Releases.
 
-### Documentation
+## Project layout
 
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/v2/docs).
+| Path | What's there |
+| --- | --- |
+| `packages/cli` | The `agartha` command-line entry point |
+| `packages/tui` | Terminal UI |
+| `packages/desktop` | Electron desktop app |
+| `packages/core` | Agent, tools, sessions, providers and the permission layer, including the Gilles-Dini Monitor |
+| `packages/server` | Local server shared by the TUI and desktop app |
 
-### Contributing
+## Credits and license
 
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
+AgarthaOpen-Code is built on [opencode](https://github.com/anomalyco/opencode), used under the MIT License. See [NOTICE.md](NOTICE.md) for details.
 
-### Building on OpenCode
-
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
-
----
-
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+AgarthaOpen-Code, the Gilles-Dini Monitor and all modifications are copyright © 2026 Jason Gilles, released under the [MIT License](LICENSE).
